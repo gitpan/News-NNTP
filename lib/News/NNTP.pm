@@ -30,8 +30,8 @@
 
 package News::NNTP;
 
-# $Rev: 6 $
-# $Date: 2008-01-27 17:06:33 -0500 (Sun, 27 Jan 2008) $
+# $Rev: 8 $
+# $Date: 2008-01-28 20:45:44 -0500 (Mon, 28 Jan 2008) $
 
 require 5.008; # I honestly don't know how far back this will work.
 use IO::Socket;
@@ -44,7 +44,7 @@ our @EXPORT_OK = qw(cmd_has_multiline_input cmd_has_multiline_output
     parse_date format_date);
 our %EXPORT_TAGS = ('all' => \@EXPORT_OK);
 
-our $VERSION = '0.1';
+our $VERSION = '0.2';
 
 my ($default_trace,$default_die,$default_resphook);
 
@@ -322,7 +322,18 @@ sub _command {
                 $self->_lastmsg($msg);
                 $self->_lastcodetype($codetype);
                 $self->_lastresp($lresp);
+                if ($commands{$command} == 1) {
+                    $self->_data(undef);
+                }
+                return 0;
             }
+        } else {
+            # We got a 480, but have no username or password.
+            # Clear out any lingering data.
+            if ($commands{$command} == 1) {
+                $self->_data(undef);
+            }
+            return 0;
         }
     }
 

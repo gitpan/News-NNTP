@@ -30,8 +30,8 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# $Rev: 6 $
-# $Date: 2008-01-27 17:06:33 -0500 (Sun, 27 Jan 2008) $
+# $Rev: 7 $
+# $Date: 2008-01-28 20:43:20 -0500 (Mon, 28 Jan 2008) $
 
 use Test::More;
 use strict;
@@ -56,13 +56,16 @@ if ($NNTPSERVER) {
 use_ok('News::NNTP');
 News::NNTP->import(':all');
 
-my $nntp = News::NNTP->new({
+my $nntp = eval { News::NNTP->new({
     'server'          => $NNTPSERVER,
     'username'        => $NNTPUSER,
     'password'        => $NNTPPASS,
     'port'            => $NNTPPORT,
     'connect_timeout' => 30,
-});
+}) };
+if (not defined $nntp) {
+    BAIL_OUT("NNTP server connection failed. $@");
+}
 isa_ok($nntp,'News::NNTP');
 
 # Testing basic accessors.
@@ -107,7 +110,7 @@ ok(!cmd_has_multiline_output('group'), 'cmd_has_multiline_output');
 
 SKIP: {
 # If we didn't get a 2xx response, we can't proceed.
-skip "NNTP connection was not successful, bailing", $tests-24
+skip "NNTP connection was not successful, bailing", $tests - 24 - scalar @datehdrs - 1
     if ($nntp->lastcodetype != 2);
 
 # Make sure lastcodetype matches the actual code.
@@ -147,9 +150,15 @@ my @glist;
 foreach my $hier (qw(news rec de no comp misc talk uk alt)) {
     $succ = $nntp->command('list active news.*');
     $respbody = $nntp->data;
+    next unless ($respbody);
     @glist = @$respbody;
     if (@glist) { last }
 }
+
+if ($nntp->lastcode == 480) {
+    BAIL_OUT('This NNTP server requires login, but none was provided. Cannot continue.');
+}
+
 is($nntp->lastcodetype, 2, 'lastcodetype from list active');
 # Pull the full active file only as a last resort.
 if (not @glist) {
