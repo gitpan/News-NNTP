@@ -1,3 +1,17 @@
+0.3
+
+* "\n" is the system-native line terminator, and some wacky systems
+  don't use LF.  Duh.  Specify CR and LF explicitely on the wire,
+  and when removing line ending LFs that came off the wire.
+
+* It's illegal for a news article to contain a bare CR, but it does
+  happen.  We now leave them in, instead of blindly assuming any CR
+  is part of a CRLF pair and stripping it.
+
+* Fix sending QUIT on disconnect.
+
+* Documentation tweaks.
+
 0.2   2008-01-28
 
 * Fix failure mode when automatic authentication fails - clear out old

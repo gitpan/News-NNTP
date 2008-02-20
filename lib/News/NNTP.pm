@@ -1,18 +1,14 @@
-# Copyright (c) 2007, Jeremy Nixon <cpan@defocus.net>
+# Copyright (c) 2007, Jeremy Nixon <jnixon@cpan.org>
 # 
 # All rights reserved.
 # 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-# 
 # Redistributions of source code must retain the above copyright notice,
-# this list of conditions and the following disclaimer.
+# this list of conditions and the following disclaimer. Redistributions
+# in binary form must reproduce the above copyright notice, this list of
+# conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
 #
-# Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
-#
-# Neither the name of Jeremy Nixon nor the names of any contributors may be
+# Neither the name of the author nor the names of any contributors may be
 # used to endorse or promote products derived from this software without
 # specific prior written permission.
 #
@@ -30,8 +26,8 @@
 
 package News::NNTP;
 
-# $Rev: 8 $
-# $Date: 2008-01-28 20:45:44 -0500 (Mon, 28 Jan 2008) $
+# $Rev: 9 $
+# $Date: 2008-02-20 18:54:35 -0500 (Wed, 20 Feb 2008) $
 
 require 5.008; # I honestly don't know how far back this will work.
 use IO::Socket;
@@ -44,7 +40,7 @@ our @EXPORT_OK = qw(cmd_has_multiline_input cmd_has_multiline_output
     parse_date format_date);
 our %EXPORT_TAGS = ('all' => \@EXPORT_OK);
 
-our $VERSION = '0.2';
+our $VERSION = '0.3';
 
 my ($default_trace,$default_die,$default_resphook);
 
@@ -430,7 +426,7 @@ sub sendcmd {
     my $res;
     {
         local $SIG{'PIPE'} = 'IGNORE';
-        $res = $self->sock->print("$cmd\r\n");
+        $res = $self->sock->print("$cmd\015\012");
     }
     unless ($res) {
         return 1 if ($cmd eq 'quit');
@@ -444,7 +440,7 @@ sub sendcmd {
         $self->_trace("-> $cmd");
         {
             local $SIG{'PIPE'} = 'IGNORE';
-            unless ($self->sock->print("$cmd\r\n")) {
+            unless ($self->sock->print("$cmd\015\012")) {
                 my $err = "$!";
                 my $errstr = 'socket->print failed';
                 if (defined($err) and length($err)) {
@@ -522,8 +518,7 @@ sub getresp {
         # This will call back into here to get the response, so we're done.
         return $self->_command($self->_lastcmd);
     }
-    $resp =~ tr/\r//d;
-    chomp $resp;
+    $resp =~ tr/\015\012//d;
     my ($code,$msg) = split / /, $resp, 2;
     $self->_lastcode($code);
     $self->_lastmsg($msg);
@@ -555,7 +550,7 @@ sub getdata {
             $self->_err('connection dropped by server during data transfer.');
             return;
         }
-        if ($line eq ".\r\n") {
+        if ($line eq ".\015\012") {
             if (defined($code)) {
                 eval { $code->(undef) };
                 if ($@) {
@@ -565,7 +560,7 @@ sub getdata {
             last;
         }
         $line =~ s/^\.\././; # technically should remove any leading dot.
-        $line =~ tr/\r//d;
+        $line =~ s/\015\012$/\012/;
         $c++;
         next if ($self->{'eat_output'});
         if (defined($code)) {
@@ -622,9 +617,9 @@ sub senddata_partial {
     my $self = shift;
     $self->{'pending_write'} = 1;
     my $data = shift;
-    $data =~ s/([^\r])\n/$1\r\n/gs;
+    $data =~ s/([^\015])\012/$1\015\012/gs;
     $data =~ s/^\./../gm;
-    $self->{'need_rn'} = (substr($data,-2,2) eq "\r\n") ? 0 : 1;
+    $self->{'need_rn'} = (substr($data,-2,2) eq "\015\012") ? 0 : 1;
     $self->sock->print($data);
     return 1;
 }
@@ -633,8 +628,8 @@ sub senddata_partial {
 # senddata_partial set a flag for us if the data didn't end with CRLF.
 sub finish_partial {
     my $self = shift;
-    $self->sock->print("\r\n") if ($self->{'need_rn'});
-    $self->sock->print(".\r\n");
+    $self->sock->print("\015\012") if ($self->{'need_rn'});
+    $self->sock->print(".\015\012");
     $self->{'pending_write'} = 0;
     $self->{'need_rn'} = 0;
     return 1;
@@ -643,6 +638,7 @@ sub finish_partial {
 sub _parse_overview_fmt {
     my $self = shift;
     my @list = @{ $self->data };
+    local $/ = "\012";
     chomp @list;
     my @ovfmt;
     foreach my $item (@list) {
@@ -667,8 +663,8 @@ sub drop {
             # We may want to set a timeout on this.
             $self->{'eat_output'} = 1;
             $self->getdata;
-            $self->sendcmd('quit');
         }
+        $self->sendcmd('quit');
         $self->sock->close;
     }
     # Remove any state flags.
@@ -714,6 +710,7 @@ sub active_count {
 # Take an overview line and return a hashref of header/value pairs.
 sub ov_hashref {
     my ($self,$line) = @_;
+    local $/ = "\012";
     chomp($line);
     my @fields = split /\t/, $line;
     my %h;
@@ -806,7 +803,7 @@ sub run_on_stdio {
         my $nc = lc((split / +/, $cmd, 2)[0]);
         if (cmd_has_multiline_input($nc)) {
             $code = sub { my $line = <STDIN>; chomp $line;
-                        return undef if ($line eq '.'); return "$line\r\n" };
+                        return undef if ($line eq '.'); return "$line\015\012" };
         } elsif (cmd_has_multiline_output($nc)) {
             $code = sub {
                 my $line = shift;

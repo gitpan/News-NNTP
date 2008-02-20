@@ -36,7 +36,7 @@ is 119).
 
 DEPENDENCIES
 
-Requires a recent Perl 5.8.x.
+Requires a recent Perl 5.8.x.  Only tested back to 5.8.6.
 
 There are no non-core dependences.
 

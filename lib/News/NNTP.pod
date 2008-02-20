@@ -58,8 +58,9 @@ further), handling it is up to you (you'll get a valid object back).
 
 A server must be provided.  Other options can be provided as well; you can
 give the server, username, and password as regular arguments to the function,
-or pass a hashref with "server" plus any of these other options:
+or pass a hashref with any of these options:
 
+  server - NNTP server name (required).
   username - authentication for the server.
   password - authentication for the server.
   port - TCP port to connect on (default is 119).
@@ -100,7 +101,7 @@ would prefer not to handle it that way, pass a coderef as the second argument
 to the method.  This code will be called repeatedly, once for each line in
 the response body, as it is read from the network, and then called with undef
 as the argument when the response is finished.  In this case, the data is NOT
-stored internally.
+stored internally.  Note that CRLF pairs are turned into newlines.
 
 If the command was LIST OVERVIEW.FMT, the returned format will be stored for
 use when parsing overviews using ov_hashref().
@@ -130,7 +131,11 @@ C<$nntp-E<gt>finish_partial>.
 Returns the multi-line response body from the last command that returned
 one.  This field is wiped out by any subsequent command that returns its
 own multi-line response, but NOT by other commands.  The data is returned
-as a reference to a list of lines.
+as a reference to a list of lines.  Lines have trailing newlines (CRLF
+line terminators are turned into just newlines).
+
+After an ARTICLE command, the return value of C<$nntp-E<gt>data> can be passed
+directly to C<News::Article-E<gt>new>, if desired.
 
 =item B<lastcode>
 
@@ -232,6 +237,9 @@ could still be left in an inconsistent or unpredictable state, so the
 connection is dropped, and whatever the module was trying to do will
 (probably) return undef, and $! should be preserved.
 
+This function does not catch all exceptions, just ones that would be
+thrown by this module itself as part of error handling.
+
 =item B<resphook> ( code )
 
 Set a function callback to be called with NNTP command responses.  The
@@ -271,6 +279,11 @@ Given a Date header from a Usenet article, parse it and return a unixtime.
 
 Given a unixtime, return a formatted string suitable for use in a Date header.
 If no time is given, the current time is used.
+
+Note that this function currently depends on the strftime() library function
+supporting "%z", which has been specified for several years. I don't know
+how universally implemented this is, though; if it is a problem, let me know
+and I'll do an internal implementation.
 
 =item B<active_group> ( line )
 
@@ -388,7 +401,7 @@ on an existing object (in which case that object is used).
 
 Thus:
 
-  C<perl -MNews::NNTP -e 'News::NNTP::run_on_stdio("server","user","pass")'
+perl -MNews::NNTP -e 'News::NNTP::run_on_stdio("server","user","pass")'
 
 creates a connection on your terminal, like C<telnet news 119>.  Useful for
 testing purposes.
@@ -396,8 +409,6 @@ testing purposes.
 =back
 
 =head1 STATUS
-
-This is the first release.
 
 I consider this code beta-quality, as not all features have been well
 tested.  Bugs are probably present.
@@ -413,9 +424,13 @@ Reading articles line by line may not be the most efficient method possible.
 
 Regression tests are incomplete.
 
+Regression tests need a news server to connect to. They retrieve live data
+from the server to use for testing, so it's possible for them to fail through
+no fault of this module if the server returns bad data.
+
 =head1 AUTHOR
 
-Jeremy Nixon <cpan@defocus.net>
+Jeremy Nixon <jnixon@cpan.org>
 
 =head1 LICENSE
 
